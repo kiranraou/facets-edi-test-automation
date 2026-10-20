@@ -1,0 +1,9 @@
+pydantic>=2.6
+pandas>=2.0
+pytest>=8.0
+# Databricks runtime provides these; only needed for local Spark runs:
+# pyspark>=3.5
+# delta-spark>=3.1
+# Streamlit app (app/)
+streamlit>=1.38
+databricks-sdk>=0.30

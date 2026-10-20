@@ -1,0 +1,8 @@
+command: ["streamlit", "run", "app.py", "--server.headless", "true"]
+env:
+  - name: DATABRICKS_WAREHOUSE_ID
+    valueFrom: sql-warehouse
+  - name: FACETS_QA_SCHEMA
+    value: workspace.facets_qa
+  - name: FACETS_QA_SOURCE
+    value: databricks

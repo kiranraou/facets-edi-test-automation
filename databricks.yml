@@ -1,0 +1,78 @@
+# Databricks Asset Bundle (serverless; works on Free Edition). Needs Databricks CLI >= 0.250.
+#   databricks bundle deploy -t free
+#   databricks bundle run facets_setup -t free
+#   databricks bundle run facets_regression -t free
+# scripts/deploy_databricks.py does the same through the Python SDK for older CLIs.
+bundle:
+  name: facets-qa
+
+variables:
+  schema:
+    default: workspace.facets_qa
+  warehouse_id:
+    description: SQL warehouse the Streamlit app queries
+    lookup:
+      warehouse: Serverless Starter Warehouse
+
+artifacts:
+  facets_qa_wheel:
+    type: whl
+    build: python -m pip wheel --no-deps -w dist .
+    path: .
+
+resources:
+  jobs:
+    facets_setup:
+      name: "facets-qa | 1. setup facets tables"
+      environments: &env
+        - environment_key: default
+          spec:
+            environment_version: "2"
+            dependencies: [./dist/*.whl]
+      tasks:
+        - task_key: create_and_seed_facets
+          environment_key: default
+          python_wheel_task:
+            package_name: facets_qa
+            entry_point: setup-facets
+            parameters: ["--schema=${var.schema}", "--members=20000"]
+
+    facets_regression:
+      name: "facets-qa | 2. daily regression"
+      schedule:
+        quartz_cron_expression: "0 0 22 ? * MON-FRI"   # 10 PM, after Facets EOD batch
+        timezone_id: America/Chicago
+        pause_status: PAUSED                          # unpause to run nightly
+      max_concurrent_runs: 1
+      environments: *env
+      tasks:
+        - task_key: eligibility_270_271
+          environment_key: default
+          python_wheel_task:
+            package_name: facets_qa
+            entry_point: run-eligibility-spark
+            parameters: ["--schema=${var.schema}", "--gateway=mock", "--workers=25",
+                         "--failure-rate=0.05", "--drift=10"]
+        - task_key: claims_837
+          environment_key: default
+          python_wheel_task:
+            package_name: facets_qa
+            entry_point: run-claims-databricks
+            parameters: ["--schema=${var.schema}"]
+
+  apps:
+    facets_qa_dashboard:
+      name: facets-qa-dashboard
+      description: Facets 270/271 + 837 QA dashboard
+      source_code_path: ./dist/app      # built by scripts/deploy_databricks.py (app + vendored facets_qa)
+      resources:
+        - name: sql-warehouse
+          sql_warehouse:
+            id: ${var.warehouse_id}
+            permission: CAN_USE
+
+targets:
+  free:
+    default: true
+    mode: development
+    # workspace host comes from DATABRICKS_HOST (see .env.example)

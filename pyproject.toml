@@ -1,0 +1,46 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "facets-qa"
+version = "1.0.0"
+description = "Facets EDI test automation: 270/271 eligibility and 837P/837I claims validation"
+requires-python = ">=3.10"
+dependencies = [
+    "pydantic>=2.6",
+    "pandas>=1.5",  # keep the Databricks runtime's pandas/numpy/pyarrow untouched
+]
+
+[project.optional-dependencies]
+spark = ["pyspark>=3.5", "delta-spark>=3.1"]
+dev = ["pytest>=8.0"]
+
+[project.scripts]
+run-eligibility = "facets_qa.eligibility.pipeline:main"
+run-claims = "facets_qa.claims.pipeline:main"
+run-eligibility-spark = "facets_qa.eligibility.spark_job:main"
+setup-facets = "facets_qa.lakehouse.setup_facets:main"
+run-claims-databricks = "facets_qa.lakehouse.claims_job:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+facets_qa = ["sql/*.sql"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
+addopts = "-ra --strict-markers"
+markers = [
+    "contracts: Pydantic data-contract tests",
+    "x12: X12 envelope / segment generation",
+    "builder: 270 request builder",
+    "parser: 271 response parser",
+    "retry: retry and exponential backoff",
+    "decision: PASS/FAIL decision logic",
+    "claims: 837P/837I claim model rules",
+    "facets: Facets backend validation",
+    "integration: end-to-end runs against the local mock Facets database",
+]

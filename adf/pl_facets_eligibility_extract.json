@@ -1,0 +1,43 @@
+{
+  "name": "pl_facets_eligibility_extract",
+  "properties": {
+    "description": "Nightly copy of Facets membership/eligibility tables (SQL Server) to the Databricks bronze layer (ADLS Delta). Runs before the facets_eligibility_eod Databricks job.",
+    "parameters": {
+      "tables": {
+        "type": "array",
+        "defaultValue": ["CMC_SBSB_SUBSC", "CMC_MEME_MEMBER", "CMC_MEPE_PRCS_ELIG"]
+      }
+    },
+    "activities": [
+      {
+        "name": "ForEachFacetsTable",
+        "type": "ForEach",
+        "typeProperties": {
+          "items": { "value": "@pipeline().parameters.tables", "type": "Expression" },
+          "isSequential": false,
+          "batchCount": 3,
+          "activities": [
+            {
+              "name": "CopyTableToBronze",
+              "type": "Copy",
+              "policy": { "timeout": "0.02:00:00", "retry": 2, "retryIntervalInSeconds": 120 },
+              "typeProperties": {
+                "source": {
+                  "type": "SqlServerSource",
+                  "sqlReaderQuery": { "value": "SELECT * FROM dbo.@{item()} WITH (NOLOCK)", "type": "Expression" }
+                },
+                "sink": {
+                  "type": "AzureDatabricksDeltaLakeSink",
+                  "preCopyScript": { "value": "TRUNCATE TABLE facets_bronze.@{toLower(item())}", "type": "Expression" }
+                },
+                "enableStaging": true
+              },
+              "inputs": [{ "referenceName": "ds_facets_sqlserver", "type": "DatasetReference" }],
+              "outputs": [{ "referenceName": "ds_databricks_delta_bronze", "type": "DatasetReference" }]
+            }
+          ]
+        }
+      }
+    ]
+  }
+}
